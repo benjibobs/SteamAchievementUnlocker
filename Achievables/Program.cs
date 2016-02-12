@@ -43,7 +43,7 @@ namespace Achievables
 			string response = "";
 
 			try{
-				WebRequest schemaReq = WebRequest.Create("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key=E05FFFE70321142E3D01F2BC9E3026E2&appid="+m_GameID+"&l=english&format=json");
+				WebRequest schemaReq = WebRequest.Create("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key=006C1D814005AF1CAE4B670EE4B38979&appid="+m_GameID+"&l=english&format=json");
 				Stream objStream = schemaReq.GetResponse().GetResponseStream();
 
 				StreamReader objReader = new StreamReader(objStream);
