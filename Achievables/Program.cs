@@ -3,7 +3,6 @@ using System.Threading;
 using System.Net;
 using System.IO;
 using Steamworks;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 
@@ -11,108 +10,102 @@ namespace Achievables
 {
 	class MainClass
 	{
-		
-		private static string m_GameID;
 
-		private static List<string> names = new List<string>();
-		private static List<string> ufNames = new List<string>();
+		private static void initSteamApi() {
 
-		private static void init()
-		{
-			if(!SteamAPI.Init())
-			{
+			if(!SteamAPI.Init()) {
+				Console.WriteLine("Could not initialize Steam API.");
+				exitWithError();
 				return;
 			}
+			
+			Console.WriteLine("Requesting current stats...");
 
-			Console.WriteLine("Reqesting current stats...");
-
-			if(!SteamUserStats.RequestCurrentStats())
-			{
+			if(!SteamUserStats.RequestCurrentStats()) {
 				Console.WriteLine ("Failed to fetch stats.");
-				Console.ReadLine ();
-				Environment.Exit (1);
+				exitWithError();
 			}
-				
 		}
 
-		private static void getSchema()
-		{
+		private static List<Achievement> populateAchievementsLists(string apiKey, string gameId) {
+
+			List<Achievement> achievements = new List<Achievement>();
+
 			Console.Clear ();
 			Console.WriteLine ("Finding achievements...");
 
 			string response = "";
 
-			try{
-				WebRequest schemaReq = WebRequest.Create("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key=006C1D814005AF1CAE4B670EE4B38979&appid="+m_GameID+"&l=english&format=json");
+			try {
+				WebRequest schemaReq = WebRequest.Create(string.Format("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={0}&appid={1}&l=english&format=json", apiKey, gameId));
 				Stream objStream = schemaReq.GetResponse().GetResponseStream();
 
 				StreamReader objReader = new StreamReader(objStream);
 
 				response = objReader.ReadToEnd();
-			}catch(Exception){
-				Console.WriteLine ("No achievements found for AppID " + m_GameID);
-				Console.ReadLine ();
-				Environment.Exit (1);
-			}
+			} catch(Exception) {
+				Console.WriteLine ("No achievements found for AppID {0}", gameId);
+				exitWithError();
+            }
 
 			Console.WriteLine ("Parsing achievements...");
 
-			try{
+			try {
 				JObject schema = JObject.Parse (response);
 
 				JEnumerable<JToken> results = schema["game"]["availableGameStats"]["achievements"].Children();
 
-				foreach (JToken result in results)
-				{
-					names.Add (result.SelectToken ("name").ToString());
-					ufNames.Add (result.SelectToken ("displayName").ToString());
+				foreach (JToken result in results) {
+					achievements.Add(new Achievement(result.SelectToken("displayName").ToString(), result.SelectToken("name").ToString()));
 				}
-			}catch(Exception){
-				Console.WriteLine ("Failed to parse json - there are likely no achievements for this game.");
-				Console.ReadLine ();
-				Environment.Exit (1);
+			} catch(Exception) {
+				Console.WriteLine ("Failed to parse json - there could be no achievements for this game.");
+				exitWithError();
 			}
 
 			Console.WriteLine ("Parsed.");
 
+			return achievements;
 		}
 
-		public static void Main (string[] args)
-		{
+		public static void Main () {
 
 			Console.Write ("Please enter the game's AppID (found in the store url): ");
 
-			m_GameID = Console.ReadLine();
+			string gameId = Console.ReadLine();
 
-			File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + @"\steam_appid.txt", m_GameID);
+			Console.Write("Please enter your API key: ");
 
-			init ();
-			SteamAPI.RunCallbacks();
-			getSchema ();
+			string apiKey = Console.ReadLine();
+
+			File.WriteAllText(string.Format("{0}\\steam_appid.txt", AppDomain.CurrentDomain.BaseDirectory), gameId);
+
+			initSteamApi ();
+
+			List<Achievement> achievements = populateAchievementsLists(apiKey, gameId);
 
 			Console.WriteLine ("Press spacebar to unlock achievements, or escape to exit.");
 
 			while (true) {
-				// Must be called from the primary thread.
-				SteamAPI.RunCallbacks();
-
 				if (Console.KeyAvailable) {
+
 					ConsoleKeyInfo info = Console.ReadKey(true);
 
 					if (info.Key == ConsoleKey.Escape) {
 						break;
-					}
-					else if (info.Key == ConsoleKey.Spacebar) {
-						for(int i = 0; i < names.Count;i++)
-						{
-							SteamUserStats.SetAchievement (names[i]);
-							Console.WriteLine ("Unlocking \'" + ufNames[i] + "\'...");
+					} else if (info.Key == ConsoleKey.Spacebar) {
+
+						foreach(Achievement achievement in achievements) {
+							SteamUserStats.SetAchievement(achievement.getId());
+							Console.WriteLine("Unlocking '{0}'...", achievement.getDisplayName());
 						}
-						if (!SteamUserStats.StoreStats ()) {
-							Console.WriteLine ("Achievements failed to unlock...");
+
+						if (!SteamUserStats.StoreStats()) {
+							Console.WriteLine("Failed to save user stats, achievements not unlocked.");
 						} else {
-							Console.WriteLine ("Achievements successfully unlocked.");
+							Console.WriteLine("Saved user stats, achievements successfully unlocked.");
 						}
+
 						break;
 					}
 
@@ -120,9 +113,15 @@ namespace Achievables
 
 				Thread.Sleep(50);
 			}
+			
 			Console.WriteLine ("Press <ENTER> to exit");
 			Console.ReadLine();
 			SteamAPI.Shutdown ();
+		}
+
+		private static void exitWithError() {
+			Console.ReadLine();
+			Environment.Exit(1);
 		}
 	}
 }
