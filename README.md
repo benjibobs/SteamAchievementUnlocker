@@ -1,7 +1,7 @@
 # SteamAchievementUnlocker
 A simple C# program which uses Steamworks.NET to unlock all achievements for a given appid
 
-#Installation
+# Installation
 * Download the zip file from [here](https://github.com/CSGOAssist/SteamAchievementUnlocker/releases/tag/1.0)
 
 **OR**
